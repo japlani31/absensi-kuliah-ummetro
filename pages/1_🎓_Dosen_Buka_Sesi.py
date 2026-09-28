@@ -35,7 +35,17 @@ info = core.MATA_KULIAH[sesi["mk"]]
 roster = core.daftar_mahasiswa(sesi["mk"])
 
 
-@st.fragment(run_every=1)
+@st.cache_data(max_entries=4, show_spinner=False)
+def gambar_qr(url):
+    """QR hanya digambar ulang saat isinya berubah (tiap 30 detik), bukan tiap refresh."""
+    buf = io.BytesIO()
+    segno.make(url, error="m").save(buf, kind="png", scale=12, border=2)
+    return buf.getvalue()
+
+
+# Diperbarui tiap 5 detik (bukan tiap detik) agar server gratis tidak terus sibuk.
+# Token menerima jendela sekarang + sebelumnya, jadi jeda 5 detik tetap aman.
+@st.fragment(run_every=5)
 def tampil_qr():
     now = time.time()
     status = core.status_waktu(sesi["mulai"], now)
@@ -46,19 +56,19 @@ def tampil_qr():
             st.error("Sesi ditutup. QR tidak lagi berlaku.")
             return
         url = core.url_absen(sesi["mk"], sesi["p"], sesi["mulai"], now)
-        buf = io.BytesIO()
-        segno.make(url, error="m").save(buf, kind="png", scale=12, border=2)
-        st.image(buf.getvalue(), width=460)
-        st.caption(f"QR berganti dalam {core.detik_sisa_jendela(now)} detik")
+        st.image(gambar_qr(url), width=460)
+        st.caption("QR berganti otomatis tiap 30 detik.")
     with kanan:
-        sisa = core.BUKA_MENIT * 60 - int(now - sesi["mulai"])
-        m, d = divmod(max(sisa, 0), 60)
-        st.markdown(f"""<div class="kartu"><div>Sisa waktu sesi</div>
-        <div class="besar">{m:02d}:{d:02d}</div>
-        <div>Status saat ini: <b>{status}</b></div></div>""", unsafe_allow_html=True)
+        batas_telat = core.fmt_wib(sesi["mulai"] + core.TERLAMBAT_MENIT * 60)[-8:-3]
+        tutup = core.fmt_wib(sesi["mulai"] + core.BUKA_MENIT * 60)[-8:-3]
+        st.markdown(f"""<div class="kartu">
+        <div>Tepat waktu sampai</div><div class="besar">{batas_telat} WIB</div>
+        <div style="margin-top:.6rem">Sesi ditutup pukul</div><div class="besar">{tutup} WIB</div>
+        <div style="margin-top:.6rem">Status saat ini: <b>{status}</b></div></div>""",
+                    unsafe_allow_html=True)
 
 
-@st.fragment(run_every=5)
+@st.fragment(run_every=15)
 def daftar_hadir():
     rows = [r for r in ambil_rekap(pin)
             if r.get("mk") == sesi["mk"] and str(r.get("pertemuan")) == str(sesi["p"])]
