@@ -92,14 +92,24 @@ def detik_sisa_jendela(ts=None):
     return JENDELA_DETIK - int(ts % JENDELA_DETIK)
 
 
+def _akar(url):
+    """Ambil hanya skema + domain, buang nama halaman (mis. /Dosen_Buka_Sesi)
+    agar QR selalu mengarah ke halaman mahasiswa (halaman utama)."""
+    from urllib.parse import urlparse
+    u = urlparse(url.strip())
+    if u.scheme and u.netloc:
+        return f"{u.scheme}://{u.netloc}"
+    return ""
+
+
 def base_url():
-    url = _secret("APP_URL", "").strip().rstrip("/")
+    url = _akar(_secret("APP_URL", ""))
     if url:
         return url
     try:
-        u = st.context.url  # tersedia di Streamlit versi baru
-        if u:
-            return u.split("?")[0].rstrip("/")
+        url = _akar(st.context.url or "")  # tersedia di Streamlit versi baru
+        if url:
+            return url
     except Exception:
         pass
     return "http://localhost:8501"
