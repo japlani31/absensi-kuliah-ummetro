@@ -53,6 +53,14 @@ function doPost(e) {
       else sh.appendRow(baris);
       return _json({status: "ok", pesan: "Status diperbarui."});
     }
+    if (d.aksi === "rekap") {
+      if (String(d.pin) !== PIN) return _json({status: "tolak"});
+      var v = sh.getDataRange().getValues();
+      var head = v.shift();
+      return _json(v.map(function (r) {
+        var o = {}; head.forEach(function (h, i) { o[h] = String(r[i]); }); return o;
+      }));
+    }
     return _json({status: "error", pesan: "aksi tidak dikenal"});
   } catch (err) {
     return _json({status: "error", pesan: String(err)});
@@ -62,14 +70,6 @@ function doPost(e) {
 }
 
 function doGet(e) {
-  var p = (e && e.parameter) ? e.parameter : {};
-  if (p.aksi === "rekap") {
-    if (String(p.pin) !== PIN) return _json({status: "tolak"});
-    var v = _sheet().getDataRange().getValues();
-    var head = v.shift();
-    return _json(v.map(function (r) {
-      var o = {}; head.forEach(function (h, i) { o[h] = String(r[i]); }); return o;
-    }));
-  }
+  // Rekap sengaja hanya lewat POST agar PIN tidak muncul di URL/log.
   return ContentService.createTextOutput("Layanan Absensi QR aktif.");
 }

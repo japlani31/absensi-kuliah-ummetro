@@ -108,7 +108,8 @@ def ambil_rekap(pin):
     url = _url()
     if url and requests is not None:
         try:
-            r = requests.get(url, params={"aksi": "rekap", "pin": pin}, timeout=15)
+            # PIN dikirim di body (POST), bukan di URL, agar tidak tercatat di log.
+            r = requests.post(url, json={"aksi": "rekap", "pin": pin}, timeout=15)
             js = r.json()
             if isinstance(js, list):
                 return js
