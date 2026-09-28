@@ -1,12 +1,18 @@
 # -*- coding: utf-8 -*-
 """
 Penyimpanan absensi ke Google Sheet lewat Google Apps Script.
-Bila APPS_SCRIPT_URL belum diatur, dipakai file CSV lokal (untuk uji coba).
 
-Aksi ke Apps Script:
-- absen  : catat kehadiran (server menolak bila NPM sudah absen di pertemuan itu)
-- set    : ubah/isi status manual oleh dosen (Izin, Sakit, dll)
-- rekap  : ambil semua baris (butuh PIN)
+Setiap mata kuliah bisa punya Google Sheet (dan Apps Script) SENDIRI:
+- APPS_SCRIPT_URL              -> dipakai E-Business (EBIS)
+- [apps_script] MKI = "..."    -> dipakai Manajemen Keuangan Internasional
+Mata kuliah lain cukup ditambah di tabel [apps_script] pada Secrets.
+
+Pengaman: bila aplikasi berjalan online tetapi mata kuliah itu belum punya
+URL, absensi DITOLAK dengan pesan jelas, bukan diam-diam dicampur ke Sheet
+mata kuliah lain. File CSV lokal hanya dipakai bila tidak ada URL sama sekali
+(uji coba di laptop).
+
+Aksi ke Apps Script: absen, set (status manual), rekap (butuh PIN).
 """
 import csv
 import os
@@ -23,16 +29,34 @@ from core import fmt_wib
 
 CSV = "absensi_lokal.csv"
 KOLOM = ["waktu", "mk", "pertemuan", "npm", "nama", "status"]
+BELUM_DIATUR = "belum-diatur"
 
 
-def _url():
+def _secret(nama, default=""):
     try:
-        return st.secrets.get("APPS_SCRIPT_URL", "").strip()
+        return st.secrets.get(nama, default)
     except Exception:
-        return ""
+        return default
 
 
-# ---------------- CSV lokal (cadangan / uji coba) ----------------
+def _url(mk):
+    """URL Apps Script khusus mata kuliah. Kembalikan '' (mode lokal) atau
+    BELUM_DIATUR (online, tapi mata kuliah ini belum punya Sheet sendiri)."""
+    try:
+        khusus = dict(st.secrets.get("apps_script", {}))
+    except Exception:
+        khusus = {}
+    if khusus.get(mk):
+        return str(khusus[mk]).strip()
+    utama = str(_secret("APPS_SCRIPT_URL", "")).strip()
+    if mk == "EBIS" and utama:
+        return utama
+    if utama or khusus:          # sedang online, tapi mk ini belum diatur
+        return BELUM_DIATUR
+    return ""                    # tidak ada URL sama sekali: mode lokal
+
+
+# ---------------- CSV lokal (uji coba) ----------------
 def _baca_csv():
     if not os.path.exists(CSV):
         return []
@@ -55,12 +79,22 @@ def _cari(rows, mk, p, npm):
     return -1
 
 
+def _baris(mk, pertemuan, npm, nama, status):
+    return {"waktu": fmt_wib(time.time()), "mk": mk, "pertemuan": int(pertemuan),
+            "npm": str(npm), "nama": nama, "status": status}
+
+
+PESAN_BELUM = ("Penyimpanan untuk mata kuliah ini belum diatur dosen "
+               "(Google Sheet belum terhubung). Hubungi dosen.")
+
+
 # ---------------- API ----------------
 def catat_absen(mk, pertemuan, npm, nama, status):
     """Kembalikan (kode, pesan). kode: 'ok' | 'duplikat' | 'gagal'."""
-    baris = {"waktu": fmt_wib(time.time()), "mk": mk, "pertemuan": int(pertemuan),
-             "npm": str(npm), "nama": nama, "status": status}
-    url = _url()
+    baris = _baris(mk, pertemuan, npm, nama, status)
+    url = _url(mk)
+    if url == BELUM_DIATUR:
+        return "gagal", PESAN_BELUM
     if url and requests is not None:
         try:
             r = requests.post(url, json={"aksi": "absen", **baris}, timeout=12)
@@ -82,9 +116,10 @@ def catat_absen(mk, pertemuan, npm, nama, status):
 
 def set_status(mk, pertemuan, npm, nama, status, pin):
     """Isi/ubah status manual oleh dosen (upsert)."""
-    baris = {"waktu": fmt_wib(time.time()), "mk": mk, "pertemuan": int(pertemuan),
-             "npm": str(npm), "nama": nama, "status": status}
-    url = _url()
+    baris = _baris(mk, pertemuan, npm, nama, status)
+    url = _url(mk)
+    if url == BELUM_DIATUR:
+        return False, PESAN_BELUM
     if url and requests is not None:
         try:
             r = requests.post(url, json={"aksi": "set", "pin": pin, **baris}, timeout=12)
@@ -102,18 +137,28 @@ def set_status(mk, pertemuan, npm, nama, status, pin):
     return True, "Status diperbarui (mode lokal)."
 
 
+def status_penyimpanan(mk):
+    """Untuk ditampilkan di halaman dosen."""
+    url = _url(mk)
+    if url == BELUM_DIATUR:
+        return "belum"
+    return "sheet" if url else "lokal"
+
+
 @st.cache_data(ttl=5, show_spinner=False)
-def ambil_rekap(pin):
-    """Ambil semua baris absensi. Di-cache 5 detik agar tidak membebani server."""
-    url = _url()
+def ambil_rekap(pin, mk):
+    """Ambil semua baris absensi satu mata kuliah. Di-cache 5 detik."""
+    url = _url(mk)
+    if url == BELUM_DIATUR:
+        return []
     if url and requests is not None:
         try:
             # PIN dikirim di body (POST), bukan di URL, agar tidak tercatat di log.
             r = requests.post(url, json={"aksi": "rekap", "pin": pin}, timeout=15)
             js = r.json()
             if isinstance(js, list):
-                return js
+                return [x for x in js if x.get("mk") == mk]
             return []
         except Exception:
             return []
-    return _baca_csv()
+    return [x for x in _baca_csv() if x.get("mk") == mk]

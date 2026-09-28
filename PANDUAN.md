@@ -34,6 +34,20 @@ Salin dari `.streamlit/secrets.toml.example`, lalu isi `APPS_SCRIPT_URL`, `DOSEN
 `QR_SECRET` (kalimat acak panjang), dan `APP_URL` (alamat aplikasi setelah deploy).
 Daftar mahasiswa juga ditaruh di Secrets agar data pribadi tidak masuk GitHub.
 
+## Sheet terpisah per mata kuliah
+
+Setiap mata kuliah disimpan ke Google Sheet sendiri. Buat Sheet baru + proyek Apps
+Script baru (isi `apps_script.gs` yang sama, `SHEET_ID` diganti), deploy, lalu tambahkan
+URL-nya di Secrets:
+
+```toml
+[apps_script]
+MKI = "https://script.google.com/macros/s/.../exec"
+```
+
+E-Business tetap memakai `APPS_SCRIPT_URL`. Bila URL suatu mata kuliah belum diisi, absensi
+ditolak dengan pesan jelas (tidak pernah tercampur ke Sheet lain).
+
 ## Menambah mata kuliah lain
 
 Tambahkan entri di `MATA_KULIAH` (`core.py`) dan daftar mahasiswanya di Secrets

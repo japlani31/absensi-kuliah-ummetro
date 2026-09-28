@@ -24,7 +24,7 @@ roster = core.daftar_mahasiswa(mk)
 if st.button("🔄 Muat ulang data"):
     ambil_rekap.clear()
 
-rows = [r for r in ambil_rekap(pin) if r.get("mk") == mk]
+rows = ambil_rekap(pin, mk)
 dilaksanakan = sorted({int(r["pertemuan"]) for r in rows})
 
 

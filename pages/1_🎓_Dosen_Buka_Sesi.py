@@ -7,7 +7,7 @@ import segno
 import streamlit as st
 
 import core
-from storage import ambil_rekap
+from storage import ambil_rekap, status_penyimpanan
 
 core.set_page("Dosen Buka Sesi", "🎓", layout="wide")
 st.markdown("## 🎓 Buka Sesi Absensi")
@@ -33,6 +33,9 @@ if not ss.get("sesi"):
 sesi = ss["sesi"]
 info = core.MATA_KULIAH[sesi["mk"]]
 roster = core.daftar_mahasiswa(sesi["mk"])
+if status_penyimpanan(sesi["mk"]) == "belum":
+    st.error(f"Google Sheet untuk {info['nama']} belum terhubung. Isi [apps_script] "
+             f"{sesi['mk']} = \"URL\" di Secrets dulu, kalau tidak absensi mahasiswa ditolak.")
 
 
 @st.cache_data(max_entries=4, show_spinner=False)
@@ -70,7 +73,7 @@ def tampil_qr():
 
 @st.fragment(run_every=15)
 def daftar_hadir():
-    rows = [r for r in ambil_rekap(pin)
+    rows = [r for r in ambil_rekap(pin, sesi["mk"])
             if r.get("mk") == sesi["mk"] and str(r.get("pertemuan")) == str(sesi["p"])]
     st.markdown(f"#### 👥 Sudah absen: {len(rows)} dari {len(roster)} mahasiswa")
     if rows:
