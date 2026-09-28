@@ -39,6 +39,12 @@ MATA_KULIAH = {
         "semester": "5",
         "dosen": "Ardiansyah Japlani, S.E., M.B.A.",
     },
+    "MKI": {
+        "nama": "Manajemen Keuangan Internasional",
+        "prodi": "S1 Manajemen",
+        "semester": "7",
+        "dosen": "Ardiansyah Japlani, S.E., M.B.A.",
+    },
 }
 
 
