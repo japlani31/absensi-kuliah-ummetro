@@ -1,0 +1,5 @@
+.streamlit/secrets.toml
+data_mahasiswa.py
+absensi_lokal.csv
+__pycache__/
+*.pyc
